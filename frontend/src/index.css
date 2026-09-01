@@ -1,0 +1,24 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
+@import "tailwindcss";
+
+/* Define custom Gusto colors & fonts using v4 @theme syntax */
+@theme {
+  --font-sans: 'Plus Jakarta Sans', 'Inter', sans-serif;
+
+  --color-gusto-teal: #0E8388;
+  --color-gusto-teal-hover: #0B6B6F;
+  --color-gusto-bg: #F4F5F7;
+  --color-gusto-sidebar: #FAFAFA;
+  --color-gusto-border: #E5E7EB;
+  --color-gusto-text-dark: #111827;
+  --color-gusto-text-muted: #6B7280;
+  --color-gusto-agree: #14B8A6;
+  --color-gusto-neutral: #FBBF24;
+  --color-gusto-disagree: #F87171;
+}
+
+body {
+  background-color: var(--color-gusto-bg);
+  color: var(--color-gusto-text-dark);
+  font-family: var(--font-sans);
+}
