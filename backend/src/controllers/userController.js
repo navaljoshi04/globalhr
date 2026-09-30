@@ -20,7 +20,8 @@ export const getMyProfile = async (req, res)=>{
 
 export const getTeamMemberProfile = async(req, res)=>{
     try {
-        const s
+        const strategy = await UserAccessStrategy(req.user);
+        const targetUserId = 
     } catch (error) {
         
     }

@@ -62,10 +62,54 @@ class UserAccessStrategy{
         return await this.findUser(targetUserId);
     }
 
+    async handleTeamList(){
+        const query=`
+                    select users.id,
+                           user.full_name,
+                           user.employee_code,
+                           user.email,
+                           user.phone_number,
+                           user.profile_image_url
+                           user.is_active
+                           dep.name as department_name,
+                           roles.name as role_name,
+                           des.title as designation_title
+                        from users 
+                        left join roles on users.role_id = roles.id
+                        left join departments dep on user.department_id= dep.id
+                        left join designations des on user.designation_id= des.id
+
+                        where users.company_id = $1,
+                        and (users.reporting_manager_id = $2 or user.super_manager_id=$2
+                        )
+                        `;
+        const {rows} = await pool.query(query, [this.companyId,this.userId]);
+        return rows; 
+    };
+
     async handleHrManagement(targetUserId){
         return await this.findUser(targetUserId);
-    }
+    };
 
+    async handleHrCompanyEmployeeList(){
+        const query= `
+                select 
+                   users.id, users.full_name, users.email, users.employee_code, 
+                   users.phone_number, users.is_active,
+                   dep.name as department_name,
+                   roles.name as role_name,
+                   des.title as designation_title,
+                   rm.full_name as reporting_manager_name
+                from users 
+                    left join roles on users.role_id = roles.id
+                    left join departments dep on user.department_id = dep.id
+                    left join designations des on user.designation_id = des.id
+                    
+                where user.company_id= $1
+                `;
+        const {rows}= await pool.query(query,[this.companyId]);
+        return rows; 
+    }
     async executeQuery(targetUserId, actionType){
         if(this.permissions.includes('employee:manage:all')|| this.permissions.includes('hr')){
             return await this.handleHrManagement(targetUserId);
