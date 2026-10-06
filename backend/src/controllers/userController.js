@@ -20,7 +20,7 @@ export const getMyProfile = async (req, res)=>{
 
 export const getTeamMemberProfile = async(req, res)=>{
     try {
-        const strategy = await UserAccessStrategy(req.user);
+        const strategy = new UserAccessStrategy(req.user);
         const targetUserId = req.params.id; 
         const userData= await strategy.handleTeamProfile(targetUserId);
         return res.status(200).json({
@@ -37,7 +37,7 @@ export const getTeamMemberProfile = async(req, res)=>{
 
 export const getTeamMembersList= async(req, res)=>{
     try {
-        const strategy = await UserAccessStrategy(req.user);
+        const strategy = new UserAccessStrategy(req.user);
         if(!strategy.permissions.includes("manager")){
             return res.status(403).json({
                 success:false,
@@ -59,7 +59,7 @@ export const getTeamMembersList= async(req, res)=>{
 
 export const getAllCompanyEmployeeAsHr= async(req, res)=>{
     try {
-        const strategy = await UserAccessStrategy(req.user);
+        const strategy = new UserAccessStrategy(req.user);
         if (!strategy.permissions.includes('employee:manage:all') && !strategy.permissions.includes('hr')) {
             return res.status(403).json({ success: false, message: "Forbidden: HR access required" });
         }
@@ -72,6 +72,64 @@ export const getAllCompanyEmployeeAsHr= async(req, res)=>{
         return res.status(403).json({
             success:false,
             message:error.message
+        });
+    }
+}
+
+export const createUser= async(req, res)=>{
+    try {
+        const strategy = new UserAccessStrategy(req.user);
+        const newUser= await strategy.createUser(req.body);
+        return res.status(201).json({
+            success: true,
+            message: "Employee successfully created!",
+            data: newUser
+        });
+
+    } catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: error.message
+        });
+    }
+}
+
+export const updateUser = async(req, res)=>{
+    try {
+        const strategy= new UserAccessStrategy(req.user);
+        const targetUserId= req.params.id; 
+        const updatedUser = strategy.updateUser(targetUserId, req.body);
+        return res.status(201).json({
+            success: true,
+            message: "Employee successfully created!",
+            data: updatedUser
+        });
+
+    } catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+
+export const deactivateUser= async(req, res)=>{
+    try {
+        const strategy = new UserAccessStrategy(req.user);
+        const targetUserId= req.params.id; 
+        const deleteUser= await strategy.deleteUser(targetUserId);
+
+         return res.status(201).json({
+            success: true,
+            message: "Employee successfully created!",
+            data: deleteUser
+        });
+
+    } catch (error) {
+           return res.status(400).json({
+            success: false,
+            message: error.message
         });
     }
 }

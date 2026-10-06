@@ -243,6 +243,28 @@ class UserAccessStrategy {
         }
         return rows[0];
     }
+
+    async deleteUser(targetUserId){
+        if(!this.permissions.includes('employee:manage:all') && !this.permissions.includes('hr')){
+            throw new Error('Forbidden:only hr or admin can update new employees');
+        };
+
+        const query = `
+            update users
+            set is_active = false 
+            where id = $1 and company_id = $2
+            returning id, full_name, email, is_active;
+        `;
+
+        const values = [targetUserId, this.companyId];
+        const { rows } = await pool.query(query, values);
+
+        if (rows.length === 0) {
+            throw new Error("not found: target employee does not exist or access denied for this tenant!");
+        }
+
+        return rows[0]; 
+    }
 }
 
 export default UserAccessStrategy;
