@@ -66,3 +66,51 @@ create table if not exists designations (
   CONSTRAINT uq_designation_company_title UNIQUE (company_id, title)
 );
 
+create type leave_status_enum as enum ('pending', 'manager_approved', 'approved', 'rejected', 'cancelled');
+create type approval_status_enum as enum ('pending', 'approved', 'rejected');
+
+create table if not exists leave_types (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references companies(id) on delete cascade,
+  name varchar(100) not null, 
+  description varchar(255),
+  max_days_per_year int default 12,
+  created_at timestamptz not null default now(),
+  constraint uq_leave_type_company_name unique (company_id, name)
+);
+
+create table if not exists leave_requests (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references companies(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  leave_type_id uuid not null references leave_types(id) on delete restrict,
+  
+  -- Leave duration details
+  start_date date not null,
+  end_date date not null,
+  total_days numeric(4, 1) not null, -- allows half days like 0.5 or 1.5
+  reason text not null,
+  
+  -- Overall Lifecycle Status
+  status varchar(30) not null default 'pending', -- 'pending', 'manager_approved', 'approved', 'rejected', 'cancelled'
+  
+  -- Manager Approval Tracking
+  manager_status varchar(30) not null default 'pending', -- 'pending', 'approved', 'rejected'
+  manager_id uuid references users(id) on delete set null, -- The manager who took the action
+  manager_action_at timestamptz,
+  manager_comments text,
+  
+  -- HR Approval Tracking
+  hr_status varchar(30) not null default 'pending', -- 'pending', 'approved', 'rejected'
+  hr_id uuid references users(id) on delete set null, -- The HR admin who took the final action
+  hr_action_at timestamptz,
+  hr_comments text,
+  
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Indexing for performance on frequent tenant and employee queries
+create index if not idx_leave_requests_company on leave_requests(company_id);
+create index if not idx_leave_requests_user on leave_requests(user_id);
+create index if not idx_leave_requests_status on leave_requests(status);
