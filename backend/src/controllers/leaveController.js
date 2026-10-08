@@ -1,12 +1,31 @@
 import pool  from "../config/db";
 
 const getLeavesStrategies= {
-    "manage:self:leave":async(req,res,userId)=>{
-
+    "manage:self:leave":async(req,res)=>{
+        const companyId= req.user.companyId;
+        const userId= req.user.userId; 
+        const query=`select lr.*,
+                            u.full_name as employee_name,
+                            u.employee_code,
+                            lt.name as leave_type_name
+                        from leave_requests lr
+                        left join users u on lr.user_id = u.id
+                        left join leave_types lt on lr.leave_type_id=lt.id
+                        where lr.company_id=$1 
+                              and lr.user_id=$2
+                        order by lr.created_at desc;
+                        ;
+                        `
+        const {rows} = await pool.query(query,[companyId,userId]);
+        return res.status(200).json({
+            success:true,
+            data:rows
+        });
     },
-    "manage:team:leave":async(req,res,userId)=>{
+    "manage:team:leave":async(req,res)=>{
         const permissions= req.user.permissions || [];
-        const companyId= res.user.companyId; 
+        const companyId= req.user.companyId; 
+        const userId= req.user.userId; 
 
         if(!permissions.includes('manager')){
             return res.status(403).json({ success: false, message: "You are not authorized to view the teams connect with the admin!"});
@@ -26,8 +45,26 @@ const getLeavesStrategies= {
         const {rows} = await pool.query(query,[companyId,userId]);
         return res.status(200).json({ success: true, data: rows });
     },
-    "manage:company:leave":async(res,res,userId,companyId)=>{
+    "manage:company:leave":async(req,res)=>{
+        const permissions= req.user.permissions || [];
+        const companyId= req.user.companyId; 
 
+         if(!permissions.includes('hr')){
+            return res.status(403).json({ success: false, message: "You are not authorized to view the member of this company, connect with the admin!"});
+        };
+        const query= `select 
+                               lr.*,
+                               u.full_name as employee_name,
+                               u.employee_code,
+                               lt.name as leave_type_name
+                            from leave_requests lr
+                            left join users u on lr.user_id = u.id
+                            left join leave_types lt on lr.leave_type_id=lt.id
+                            where lr.company_id=$1
+                            order by lr.created_at desc;
+                            `;
+        const {rows} = await pool.query(query,[companyId]);
+        return res.status(200).json({ success: true, data: rows });
     }
 }
 
@@ -56,3 +93,90 @@ export const applyLeave= async(req, res)=>{
     }
 }
 
+
+export const getLeaves= async(req,res)=>{
+    try {
+        const permissions= req.user.permissions || [];
+        const userId= req.user.userId; 
+        let strategykey= req.query.type || 'manage:self:leave';
+        if(!req.query.type){
+            if(permissions.includes('hr')){
+                strategykey='manage:company:leave';
+            }else if(permissions.includes('manager')){
+                strategykey= 'manage:team:leave';
+            }
+        }
+
+        const selectedStrategy= getLeavesStrategies[strategykey];
+        if (!selectedStrategy) {
+            return res.status(400).json({ success: false, message: "Invalid leave strategy type!" });
+        }
+        return selectedStrategy(req,res);
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+}
+
+
+export const managerLeaveActions= async(req,res)=>{
+    try {
+        const userId= req.user.userId;
+        const companyId= req.usr.companyId;
+        const permissions= req.user.permissions || [];
+        const leaveId= req.params.id;
+        const {comments, action} =req.body;
+        
+        if (!permissions.includes('manager')) {
+            return res.status(403).json({ success: false, message: "Unauthorized: Manager access required." });
+        }
+        if (!['approved', 'rejected'].includes(action)) {
+            return res.status(400).json({ success: false, message: "Invalid action! Use 'approved' or 'rejected'." });
+        }
+
+        const checkquery=`
+                         select lr.*,
+                                u.reporting_manager_id,
+                                u.super_manager_id,
+                            from leave_requests lr
+                            join users u on lr.user_id = u.id
+                            where lr.id = $1 and lr.company_id= $2 
+                            ;`
+        const {rows} = await pool.query(checkquery,[leaveId,companyId]);
+        if (rows.length === 0) {
+            return res.status(404).json({ success: false, message: "Leave request not found!" });
+        };
+        const leave = rows[0];
+        if(leave.reporting_manager_id !== userId && leave.super_manager_id !== userId){
+            return res.status(403).json({ success: false, message: "You are not authorized to take action on this leave request." });
+        }
+        const newOverallStatus = action === 'approved' ? 'manager_approved' : 'rejected';
+        const updateQuery= `update leave_requests 
+                                   set manager_status=$1,
+                                       manager_id=$2,
+                                       manager_comments=$3,
+                                       manager_action_at= now(),
+                                       status=$4,
+                                       updated_at= now()
+                                    where id= $5 
+                                    returning *
+                                    ;
+                                    `
+        const updateValues= [action,userId,comments,newOverallStatus,leaveId];
+        const updatedResult = await pool.query(updateQuery, updateValues);
+        return res.status(200).json({
+            success: true,
+            message: `Leave request ${action} by manager successfully!`,
+            data: updatedResult.rows[0]
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+}
+
+export const hrLeaveActions= async(req,res)=>{
+    try {
+        
+    } catch (error) {
+        
+    }
+}
