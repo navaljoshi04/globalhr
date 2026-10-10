@@ -175,8 +175,51 @@ export const managerLeaveActions= async(req,res)=>{
 
 export const hrLeaveActions= async(req,res)=>{
     try {
-        
+        const userId = req.user.userId;
+        const permissions = req.user.permissions || [];
+        const companyId = req.user.companyId; 
+        const leaveId= req.params.id; 
+
+        const {action, comments} = req.body; 
+        if (!['approved', 'rejected'].includes(action)) {
+            return res.status(400).json({ success: false, message: "Invalid action! Use 'approved' or 'rejected'." });
+        }
+         if (!permissions.includes('hr')) {
+            return res.status(403).json({ success: false, message: "Unauthorized: Hr  access required." });
+        };
+        const checkquery= `select lr.*,
+                                  u.company_id,
+                                  u.role_id
+                                from leave_requests lr 
+                                left join users u on lr.user_id = u.id 
+                                where lr.id= $1 and lr.company_id=$2 
+                                ;`;
+        const {rows} = await pool.query(checkquery,[leaveId,companyId]);
+        if(rows.length == 0){
+            return res.status(404).json({ success: false, message: "Leave request not found!" });
+        }
+        const leave = rows[0];
+        if (leave.manager_status !== 'approved') {
+            return res.status(400).json({ success: false, message: "Manager approval is required first!" });
+        }
+        const updateQuery= `
+                           update leave_requests 
+                                  set hr_status=$1,
+                                      hr_id=$2,
+                                      hr_action_at= now(),
+                                      hr_comments=$3,
+                                      status=$4
+                                  where id=$5
+                                  returning *;
+                                `
+        const values= [action,userId,comments,action,leaveId];
+        const updatedResult = await pool.query(updateQuery,values);
+        return res.status(200).json({
+            success: true,
+            message: `Leave request ${action} by HR successfully!`,
+            data: updatedResult.rows[0]
+        }); 
     } catch (error) {
-        
+       return res.status(500).json({ success: false, message: error.message }); 
     }
 }

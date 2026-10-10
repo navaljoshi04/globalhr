@@ -7,6 +7,8 @@ import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import departmentRoutes from "./routes/departmentRoute.js";
 import designationRoutes from "./routes/designationRoute.js";
+import leaveRoutes from "./routes/leaveRoutes.js";
+
 
 const app = express();
 
@@ -21,6 +23,8 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes); 
 app.use('/api/v1/departments', departmentRoutes); 
 app.use('/api/v1/designations',designationRoutes);
+app.use('/api/v1/leaves',leaveRoutes);
+
 
 
 app.get("/health", (req, res) => {
