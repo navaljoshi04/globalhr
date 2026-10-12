@@ -76,6 +76,30 @@ export const applyLeave= async(req, res)=>{
         if (!leave_type_id || !start_date || !end_date || !total_days || !reason) {
             return res.status(400).json({ success: false, message: "all required fields must be provided!" });
         }
+        const checkBalanceQuery= `select total_allocated, 
+                                    used_leaves,
+                                    pending_leaves
+                                from leave_balances 
+                                where user_id=$1
+                                      and company_id=$2
+                                      and leave_type_id=$3
+                                      and year=$4 ;
+                                `
+        const balanceResult = await pool.query(checkBalanceQuery, [userId, companyId, leave_type_id, currentYear]);
+        if(balanceResult.rows.length === 0){
+            return res.status(400).json({ 
+                success: false, 
+                message: "Leave balance record not found for this leave type. Please contact HR." 
+            });
+        };
+        const balance = balanceResult.rows[0];
+        const availableBalance = Number(balance.total_allocated) - (Number(balance.used_leaves) + Number(balance.pending_leaves));
+        if (total_days > availableBalance) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Insufficient leave balance! You requested ${total_days} days, but only ${availableBalance} days are available.` 
+            });
+        }
         const query = `insert into 
                                  leave_requests(
                                  company_id,user_id,leave_type_id,start_date,end_date,total_days,reason)
@@ -83,6 +107,13 @@ export const applyLeave= async(req, res)=>{
                                  returning id, start_date, end_date, total_days, status, created_at;
                         `
         const {rows}= await pool.query(query,[companyId,userId,leave_type_id,start_date,end_date,total_days,reason]);
+        const updateBalanceQuery = `
+            update leave_balances
+            set pending_leaves = pending_leaves + $1,
+                updated_at = now()
+            where user_id = $2 and leave_type_id = $3 and year = $4;
+        `;
+        await pool.query(updateBalanceQuery, [total_days, userId, leave_type_id, currentYear]);
         return res.status(201).json({
             success: true,
             message: "leave application submitted successfully!",
@@ -174,7 +205,9 @@ export const managerLeaveActions= async(req,res)=>{
 }
 
 export const hrLeaveActions= async(req,res)=>{
+    const client = await pool.connect();
     try {
+        await client.query("BEGIN");
         const userId = req.user.userId;
         const permissions = req.user.permissions || [];
         const companyId = req.user.companyId; 
@@ -182,9 +215,11 @@ export const hrLeaveActions= async(req,res)=>{
 
         const {action, comments} = req.body; 
         if (!['approved', 'rejected'].includes(action)) {
+            await client.query('ROLLBACK');
             return res.status(400).json({ success: false, message: "Invalid action! Use 'approved' or 'rejected'." });
         }
          if (!permissions.includes('hr')) {
+             await client.query('ROLLBACK');
             return res.status(403).json({ success: false, message: "Unauthorized: Hr  access required." });
         };
         const checkquery= `select lr.*,
@@ -196,10 +231,12 @@ export const hrLeaveActions= async(req,res)=>{
                                 ;`;
         const {rows} = await pool.query(checkquery,[leaveId,companyId]);
         if(rows.length == 0){
+            await client.query('ROLLBACK');
             return res.status(404).json({ success: false, message: "Leave request not found!" });
         }
         const leave = rows[0];
         if (leave.manager_status !== 'approved') {
+            await client.query('ROLLBACK');
             return res.status(400).json({ success: false, message: "Manager approval is required first!" });
         }
         const updateQuery= `
@@ -214,12 +251,35 @@ export const hrLeaveActions= async(req,res)=>{
                                 `
         const values= [action,userId,comments,action,leaveId];
         const updatedResult = await pool.query(updateQuery,values);
+        if (action === 'approved') {
+            const updateBalanceQuery = `
+                update leave_balances
+                set pending_leaves = pending_leaves - $1,
+                    used_leaves = used_leaves + $1,
+                    updated_at = now()
+                where user_id = $2 and leave_type_id = $3 and year = $4;
+            `;
+            await client.query(updateBalanceQuery, [totalDays, leave.user_id, leave.leave_type_id, currentYear]);
+        } else if (action === 'rejected') {
+            const updateBalanceQuery = `
+                update leave_balances
+                set pending_leaves = pending_leaves - $1,
+                    updated_at = now()
+                where user_id = $2 and leave_type_id = $3 and year = $4;
+            `;
+            await client.query(updateBalanceQuery, [totalDays, leave.user_id, leave.leave_type_id, currentYear]);
+        }
+
+        await client.query('COMMIT');
         return res.status(200).json({
             success: true,
             message: `Leave request ${action} by HR successfully!`,
             data: updatedResult.rows[0]
         }); 
     } catch (error) {
+        await client.query('ROLLBACK');
        return res.status(500).json({ success: false, message: error.message }); 
+    }finally{
+        await client.query('RELEASE');
     }
 }

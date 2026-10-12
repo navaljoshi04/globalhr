@@ -110,7 +110,24 @@ create table if not exists leave_requests (
   updated_at timestamptz not null default now()
 );
 
+
+create table if not exists leave_balances(
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references companies(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  leave_type_id uuid not null references leave_types(id) on delete cascade,
+  year int not null default extract(year from current_date),
+  total_allocated numeric(4, 1) not null default 0.0,         -- Total leaves allotted (e.g., 12.0)
+  used_leaves numeric(4, 1) not null default 0.0,             -- Kitni use/approve ho chuki hain
+  pending_leaves numeric(4, 1) not null default 0.0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint uq_user_leave_type_year unique (user_id, leave_type_id, year)
+);
+
 -- Indexing for performance on frequent tenant and employee queries
 create index if not idx_leave_requests_company on leave_requests(company_id);
 create index if not idx_leave_requests_user on leave_requests(user_id);
 create index if not idx_leave_requests_status on leave_requests(status);
+create index if not idx_leave_balances_company on leave_balances(company_id);
+create index if not idx_leave_balances_user on leave_balances(user_id);
