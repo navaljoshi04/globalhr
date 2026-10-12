@@ -1,4 +1,4 @@
-import pool  from "../config/db";
+import pool  from "../config/db.js";
 
 const getLeavesStrategies= {
     "manage:self:leave":async(req,res)=>{
@@ -124,7 +124,6 @@ export const applyLeave= async(req, res)=>{
     }
 }
 
-
 export const getLeaves= async(req,res)=>{
     try {
         const permissions= req.user.permissions || [];
@@ -147,7 +146,6 @@ export const getLeaves= async(req,res)=>{
         return res.status(500).json({ success: false, message: error.message });
     }
 }
-
 
 export const managerLeaveActions= async(req,res)=>{
     try {

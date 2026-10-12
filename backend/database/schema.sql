@@ -125,6 +125,25 @@ create table if not exists leave_balances(
   constraint uq_user_leave_type_year unique (user_id, leave_type_id, year)
 );
 
+create table if not exists tasks (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references companies(id) on delete cascade,
+  assigned_to uuid references users(id) on delete set null,
+  assigned_by uuid references users(id) on delete set null,
+  department_id references departments(id) on delete set null,
+  title varchar(255) not null,
+  description text,
+  status varchar(30) not null default 'pending', -- 'pending', 'in_progress', 'completed', 'cancelled'
+  priority varchar(20) not null default 'medium', -- 'low', 'medium', 'high', 'urgent'
+  due_date timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not idx_tasks_company on tasks(company_id);
+create index if not idx_tasks_assigned_to on tasks(assigned_to);
+create index if not idx_tasks_status on tasks(status);
+
 -- Indexing for performance on frequent tenant and employee queries
 create index if not idx_leave_requests_company on leave_requests(company_id);
 create index if not idx_leave_requests_user on leave_requests(user_id);
