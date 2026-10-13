@@ -73,10 +73,9 @@ export const createTask = async (req, res) => {
   }
 };
 
-
 export const updateTaskStatus = async (req, res) => {
   try {
-    const companyId = req.user.companyId || req.user.company_id; 
+    const companyId = req.user.companyId || req.user.company_id;
     const userId = req.user.userId;
     const taskId = req.params.id;
     const { status, description, priority } = req.body;
@@ -117,7 +116,6 @@ export const updateTaskStatus = async (req, res) => {
       message: "Successfully updated the task!",
       data: updatedResult.rows[0],
     });
-
   } catch (error) {
     return res.status(500).json({
       success: false,
